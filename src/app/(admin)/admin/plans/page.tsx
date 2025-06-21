@@ -205,10 +205,13 @@ export default function AdminPlansPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edytuj Plan: {planToEdit?.name}</DialogTitle>
+                        <DialogDescription>
+                            Zmień poniższe dane, aby zaktualizować plan.
+                        </DialogDescription>
                     </DialogHeader>
                     <PlanForm
                         initialData={planToEdit!}
-                        isPending={isMutationPending}
+                        isPending={updateMutation.isPending}
                         onSubmit={handleFormSubmit}
                     />
                 </DialogContent>
