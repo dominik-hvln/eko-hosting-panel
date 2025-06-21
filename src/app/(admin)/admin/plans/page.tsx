@@ -10,12 +10,7 @@ import {
 } from '@/components/ui/table';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -24,104 +19,135 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { PlanForm } from './PlanForm';
-import { z } from 'zod';
+import toast from 'react-hot-toast';
 
-// Typy i funkcje pomocnicze, teraz lokalne dla tego pliku
 interface Plan {
     id: string;
     name: string;
     price: string;
+    cpuLimit: number;
     ramLimit: number;
     diskSpaceLimit: number;
+    monthlyTransferLimit: number;
     isPublic: boolean;
 }
 
-const API_URL = 'http://localhost:4000'; // Używamy stałej zamiast .env
+const API_URL = 'http://localhost:4000';
 
 const getAuthHeader = () => {
     const token = localStorage.getItem('access_token');
-    if (!token) return {};
-    return { Authorization: `Bearer ${token}` };
+    return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-const fetchAdminPlans = async (): Promise<Plan[]> => {
-    const response = await fetch(`${API_URL}/plans`, {
-        headers: getAuthHeader(),
-    });
-    if (!response.ok) throw new Error('Nie udało się pobrać planów.');
-    return response.json();
-};
-
-// Funkcja do wysyłania danych nowego planu
-const createPlan = async (newPlanData: any): Promise<Plan> => {
-    const response = await fetch(`${API_URL}/plans`, {
-        method: 'POST',
-        headers: {
-            ...getAuthHeader(),
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newPlanData),
-    });
+const handleResponse = async (response: Response) => {
+    // Obsługa błędów pozostaje bez zmian
     if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Nie udało się stworzyć planu.');
+        const errorData = await response.json().catch(() => ({
+            message: 'Nieznany błąd serwera',
+        }));
+        throw new Error(errorData.message || 'Wystąpił błąd API');
     }
+
+    if (response.status === 204) {
+        return;
+    }
+
     return response.json();
-}
+};
+
+const fetchAdminPlans = (): Promise<Plan[]> =>
+    fetch(`${API_URL}/plans`, { headers: getAuthHeader() }).then(handleResponse);
+
+const createPlan = (newPlanData: any): Promise<Plan> =>
+    fetch(`${API_URL}/plans`, {
+        method: 'POST',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPlanData),
+    }).then(handleResponse);
+
+const updatePlan = ({ id, data }: { id: string; data: any }): Promise<Plan> =>
+    fetch(`${API_URL}/plans/${id}`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    }).then(handleResponse);
+
+const deletePlan = (id: string): Promise<void> =>
+    fetch(`${API_URL}/plans/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeader(), 'Content-Type': 'application/json',
+    }).then(handleResponse);
 
 
 export default function AdminPlansPage() {
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [planToEdit, setPlanToEdit] = useState<Plan | null>(null);
     const queryClient = useQueryClient();
 
-    const {
-        data: plans,
-        isLoading,
-        isError,
-    } = useQuery<Plan[]>({
+    const { data: plans, isLoading, isError } = useQuery<Plan[]>({
         queryKey: ['admin-plans'],
         queryFn: fetchAdminPlans,
     });
 
-    // Logika mutacji (tworzenia nowego planu)
-    const { mutate, isPending } = useMutation({
-        mutationFn: createPlan, // Używamy naszej nowej, lokalnej funkcji
-        onSuccess: () => {
-            console.log('Plan stworzony pomyślnie! Odświeżam listę...');
-            queryClient.invalidateQueries({ queryKey: ['admin-plans'] });
-            setIsDialogOpen(false);
-        },
-        onError: (error) => {
-            alert(`Wystąpił błąd: ${error.message}`);
-        },
-    });
+    const onMutationSuccess = (message: string) => {
+        queryClient.invalidateQueries({ queryKey: ['admin-plans'] });
+        toast.success(message);
+    };
+
+    const onMutationError = (error: Error) => {
+        toast.error(`Wystąpił błąd: ${error.message}`);
+    };
+
+    const createMutation = useMutation({ mutationFn: createPlan, onSuccess: () => { onMutationSuccess('Plan pomyślnie utworzony!'); setIsCreateDialogOpen(false); }, onError: onMutationError });
+    const updateMutation = useMutation({ mutationFn: updatePlan, onSuccess: () => { onMutationSuccess('Plan pomyślnie zaktualizowany!'); setPlanToEdit(null); }, onError: onMutationError });
+    const deleteMutation = useMutation({ mutationFn: deletePlan, onSuccess: () => onMutationSuccess('Plan pomyślnie usunięty!'), onError: onMutationError });
 
     if (isLoading) return <div>Ładowanie planów...</div>;
     if (isError) return <div>Wystąpił błąd podczas pobierania danych.</div>;
 
-    // Zdefiniowanie typu dla `onSubmit` z naszego formularza
-    const handleFormSubmit = (values: z.infer<any>) => {
-        mutate(values);
+    const handleFormSubmit = (values: any) => {
+        if (planToEdit) {
+            updateMutation.mutate({ id: planToEdit.id, data: values });
+        } else {
+            createMutation.mutate(values);
+        }
     };
+
+    const isMutationPending = createMutation.isPending || updateMutation.isPending;
 
     return (
         <div>
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-3xl font-bold">Zarządzanie Planami</h1>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                     <DialogTrigger asChild>
                         <Button>Dodaj nowy plan</Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Nowy Plan Hostingowy</DialogTitle>
-                            <DialogDescription>
-                                Wypełnij poniższe pola, aby stworzyć nowy plan.
-                            </DialogDescription>
+                            <DialogTitle>Nowy Plan</DialogTitle>
                         </DialogHeader>
-                        <PlanForm onSubmit={handleFormSubmit} isPending={isPending} />
+                        <PlanForm onSubmit={handleFormSubmit} isPending={isMutationPending} />
                     </DialogContent>
                 </Dialog>
             </div>
@@ -135,8 +161,6 @@ export default function AdminPlansPage() {
                             <TableRow>
                                 <TableHead>Nazwa</TableHead>
                                 <TableHead>Cena (PLN)</TableHead>
-                                <TableHead>RAM (MB)</TableHead>
-                                <TableHead>Dysk (MB)</TableHead>
                                 <TableHead>Publiczny</TableHead>
                                 <TableHead className="text-right">Akcje</TableHead>
                             </TableRow>
@@ -146,16 +170,49 @@ export default function AdminPlansPage() {
                                 <TableRow key={plan.id}>
                                     <TableCell className="font-medium">{plan.name}</TableCell>
                                     <TableCell>{plan.price}</TableCell>
-                                    <TableCell>{plan.ramLimit}</TableCell>
-                                    <TableCell>{plan.diskSpaceLimit}</TableCell>
                                     <TableCell>{plan.isPublic ? 'Tak' : 'Nie'}</TableCell>
-                                    <TableCell className="text-right"></TableCell>
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => setPlanToEdit(plan)}>Edytuj</DropdownMenuItem>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">Usuń</DropdownMenuItem></AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Czy na pewno chcesz usunąć ten plan?</AlertDialogTitle>
+                                                            <AlertDialogDescription>Tej akcji nie można cofnąć.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Anuluj</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => deleteMutation.mutate(plan.id)} className="bg-red-600 hover:bg-red-700">
+                                                                Usuń na stałe
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
                 </CardContent>
             </Card>
+
+            <Dialog open={!!planToEdit} onOpenChange={(isOpen) => !isOpen && setPlanToEdit(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Edytuj Plan: {planToEdit?.name}</DialogTitle>
+                    </DialogHeader>
+                    <PlanForm
+                        initialData={planToEdit!}
+                        isPending={isMutationPending}
+                        onSubmit={handleFormSubmit}
+                    />
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

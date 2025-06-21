@@ -14,7 +14,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch'; // Potrzebujemy nowego komponentu
+import { Switch } from '@/components/ui/switch';
+import { useEffect } from 'react';
 
 // Definiujemy schemat walidacji za pomocą Zod
 const formSchema = z.object({
@@ -27,16 +28,19 @@ const formSchema = z.object({
     isPublic: z.boolean().default(true),
 });
 
+type FormValues = z.infer<typeof formSchema>;
+
 // Definiujemy typy dla propsów komponentu
 interface PlanFormProps {
-    onSubmit: (values: z.infer<typeof formSchema>) => void;
+    onSubmit: (values: FormValues) => void;
     isPending: boolean;
+    initialData?: Partial<FormValues>;
 }
 
-export function PlanForm({ onSubmit, isPending }: PlanFormProps) {
-    const form = useForm<z.infer<typeof formSchema>>({
+export function PlanForm({ onSubmit, isPending, initialData }: PlanFormProps) {
+    const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
-        defaultValues: {
+        defaultValues: initialData || {
             name: '',
             price: 10.0,
             cpuLimit: 100,
@@ -46,6 +50,12 @@ export function PlanForm({ onSubmit, isPending }: PlanFormProps) {
             isPublic: true,
         },
     });
+
+    useEffect(() => {
+        if (initialData) {
+            form.reset(initialData);
+        }
+    }, [initialData, form]);
 
     return (
         <Form {...form}>
