@@ -1,4 +1,4 @@
-'use client'; // <-- Kluczowa linijka! Mówi Next.js, że ten komponent jest interaktywny i działa w przeglądarce.
+'use client';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -11,20 +11,20 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useState } from 'react'; // Importujemy hook useState
+import { useState } from 'react';
+import { useRouter } from 'next/navigation'; // <-- 1. Importujemy useRouter do przekierowań
 
 export default function LoginPage() {
-    // Tworzymy "stan" dla naszych pól formularza
+    const router = useRouter(); // <-- 2. Inicjalizujemy router
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault(); // Zapobiegamy domyślnemu przeładowaniu strony
-        setError(''); // Resetujemy błąd przy każdej próbie
+        e.preventDefault();
+        setError('');
 
         try {
-            // Wysyłamy zapytanie do naszego backendu na porcie 4000
             const res = await fetch('http://localhost:4000/auth/login', {
                 method: 'POST',
                 headers: {
@@ -34,16 +34,20 @@ export default function LoginPage() {
             });
 
             if (!res.ok) {
-                // Jeśli odpowiedź serwera nie jest pomyślna (np. błąd 401)
                 const errorData = await res.json();
                 throw new Error(errorData.message || 'Nie udało się zalogować.');
             }
 
-            // Jeśli logowanie się udało
             const data = await res.json();
-            console.log('Zalogowano pomyślnie! Token:', data.access_token);
-            // TODO: W przyszłości zapiszemy token i przekierujemy użytkownika
-            alert('Zalogowano pomyślnie!');
+
+            // --- NOWA LOGIKA ---
+            // 3. Zapisujemy token w pamięci lokalnej przeglądarki
+            localStorage.setItem('access_token', data.access_token);
+
+            // 4. Przekierowujemy użytkownika na dashboard
+            router.push('/dashboard');
+            // --- KONIEC NOWEJ LOGIKI ---
+
         } catch (err: any) {
             console.error(err);
             setError(err.message);
@@ -52,7 +56,6 @@ export default function LoginPage() {
 
     return (
         <main className="flex min-h-screen items-center justify-center bg-gray-100">
-            {/* Używamy <form> zamiast <div> */}
             <form onSubmit={handleSubmit}>
                 <Card className="w-full max-w-sm">
                     <CardHeader>
@@ -64,7 +67,6 @@ export default function LoginPage() {
                     <CardContent className="grid gap-4">
                         <div className="grid gap-2">
                             <Label htmlFor="email">Email</Label>
-                            {/* Łączymy inputy z naszym stanem */}
                             <Input
                                 id="email"
                                 type="email"
@@ -84,11 +86,12 @@ export default function LoginPage() {
                                 onChange={(e) => setPassword(e.target.value)}
                             />
                         </div>
-                        {/* Wyświetlamy błąd, jeśli wystąpi */}
                         {error && <p className="text-sm font-medium text-red-500">{error}</p>}
                     </CardContent>
                     <CardFooter>
-                        <Button type="submit" className="w-full">Zaloguj się</Button>
+                        <Button type="submit" className="w-full">
+                            Zaloguj się
+                        </Button>
                     </CardFooter>
                 </Card>
             </form>
