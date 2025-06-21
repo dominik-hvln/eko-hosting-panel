@@ -8,7 +8,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -16,8 +16,19 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { useState } from 'react';
+import { PlanForm } from './PlanForm';
+import { z } from 'zod';
 
-// Definicja typu dla planu
+// Typy i funkcje pomocnicze, teraz lokalne dla tego pliku
 interface Plan {
     id: string;
     name: string;
@@ -27,44 +38,92 @@ interface Plan {
     isPublic: boolean;
 }
 
-// Funkcja pobierająca dane, umieszczona bezpośrednio tutaj
-const fetchAdminPlans = async (): Promise<Plan[]> => {
+const API_URL = 'http://localhost:4000'; // Używamy stałej zamiast .env
+
+const getAuthHeader = () => {
     const token = localStorage.getItem('access_token');
-    if (!token) {
-        throw new Error('Brak tokenu autoryzacyjnego.');
-    }
+    if (!token) return {};
+    return { Authorization: `Bearer ${token}` };
+};
 
-    // Używamy bezpośrednio adresu URL, omijając zmienną środowiskową
-    const apiUrl = 'http://localhost:4000/plans';
-
-    const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
+const fetchAdminPlans = async (): Promise<Plan[]> => {
+    const response = await fetch(`${API_URL}/plans`, {
+        headers: getAuthHeader(),
     });
-
-    if (!response.ok) {
-        throw new Error('Nie udało się pobrać planów.');
-    }
+    if (!response.ok) throw new Error('Nie udało się pobrać planów.');
     return response.json();
 };
 
+// Funkcja do wysyłania danych nowego planu
+const createPlan = async (newPlanData: any): Promise<Plan> => {
+    const response = await fetch(`${API_URL}/plans`, {
+        method: 'POST',
+        headers: {
+            ...getAuthHeader(),
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newPlanData),
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Nie udało się stworzyć planu.');
+    }
+    return response.json();
+}
+
+
 export default function AdminPlansPage() {
-    const { data, isLoading, isError } = useQuery<Plan[]>({
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const queryClient = useQueryClient();
+
+    const {
+        data: plans,
+        isLoading,
+        isError,
+    } = useQuery<Plan[]>({
         queryKey: ['admin-plans'],
-        queryFn: fetchAdminPlans, // Używamy naszej nowej, lokalnej funkcji
+        queryFn: fetchAdminPlans,
+    });
+
+    // Logika mutacji (tworzenia nowego planu)
+    const { mutate, isPending } = useMutation({
+        mutationFn: createPlan, // Używamy naszej nowej, lokalnej funkcji
+        onSuccess: () => {
+            console.log('Plan stworzony pomyślnie! Odświeżam listę...');
+            queryClient.invalidateQueries({ queryKey: ['admin-plans'] });
+            setIsDialogOpen(false);
+        },
+        onError: (error) => {
+            alert(`Wystąpił błąd: ${error.message}`);
+        },
     });
 
     if (isLoading) return <div>Ładowanie planów...</div>;
     if (isError) return <div>Wystąpił błąd podczas pobierania danych.</div>;
 
+    // Zdefiniowanie typu dla `onSubmit` z naszego formularza
+    const handleFormSubmit = (values: z.infer<any>) => {
+        mutate(values);
+    };
+
     return (
         <div>
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-3xl font-bold">Zarządzanie Planami</h1>
-                <Button>Dodaj nowy plan</Button>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button>Dodaj nowy plan</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Nowy Plan Hostingowy</DialogTitle>
+                            <DialogDescription>
+                                Wypełnij poniższe pola, aby stworzyć nowy plan.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <PlanForm onSubmit={handleFormSubmit} isPending={isPending} />
+                    </DialogContent>
+                </Dialog>
             </div>
             <Card>
                 <CardHeader>
@@ -83,7 +142,7 @@ export default function AdminPlansPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {data?.map((plan) => (
+                            {plans?.map((plan) => (
                                 <TableRow key={plan.id}>
                                     <TableCell className="font-medium">{plan.name}</TableCell>
                                     <TableCell>{plan.price}</TableCell>

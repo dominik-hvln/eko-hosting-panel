@@ -26,4 +26,19 @@ export const api = {
         );
         return handleResponse(response);
     },
+
+    post: async <T>(endpoint: string, body: unknown): Promise<T> => {
+        const response = await fetch(
+            `<span class="math-inline">\{process\.env\.NEXT\_PUBLIC\_API\_URL\}</span>{endpoint}`,
+            {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeader(),
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+            },
+        );
+        return handleResponse(response);
+    },
 };
