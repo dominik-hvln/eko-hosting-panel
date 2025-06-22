@@ -1,48 +1,44 @@
-'use client'; // Ten layout sprawdza logowanie, więc musi być kliencki
+'use client';
 
+import { ImpersonationBanner } from '@/components/ImpersonationBanner';
+import { UserNav } from '@/components/UserNav'; // Importujemy UserNav
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 
-export default function DashboardLayout({
-                                            children,
-                                        }: {
-    children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode; }) {
     const router = useRouter();
     const [isVerified, setIsVerified] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem('access_token');
-        if (!token) {
-            router.push('/login');
-        } else {
-            // Na razie sprawdzamy tylko istnienie tokenu.
-            // W przyszłości możemy tu weryfikować jego ważność.
-            setIsVerified(true);
-        }
+        if (!token) { router.push('/login'); }
+        else { setIsVerified(true); }
     }, [router]);
 
-    // Dopóki nie zweryfikujemy, pokazujemy ekran ładowania
-    if (!isVerified) {
-        return <div className="flex h-screen items-center justify-center">Weryfikacja...</div>;
-    }
+    if (!isVerified) { return <div className="flex h-screen items-center justify-center">Weryfikacja...</div>; }
 
-    // Jeśli użytkownik jest zweryfikowany, wyświetlamy layout panelu
     return (
-        <div className="flex min-h-screen">
-            <aside className="w-64 bg-gray-50 border-r">
-                <div className="p-4">
-                    <h2 className="font-bold text-xl text-gray-800">EKO-HOSTING</h2>
+        <div className="flex min-h-screen flex-col">
+            <ImpersonationBanner />
+            <div className="flex flex-1">
+                <aside className="w-64 bg-gray-100 dark:bg-gray-900 border-r">
+                    <div className="p-4"><h2 className="font-bold text-xl">EKO-HOSTING</h2></div>
+                    <nav className="flex flex-col p-2 space-y-1">
+                        <Link href="/dashboard" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Dashboard</Link>
+                        <Link href="/dashboard/services" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Usługi</Link>
+                        <Link href="/dashboard/wallet" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Portfel</Link>
+                        <Link href="/dashboard/tickets" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Zgłoszenia</Link>
+                    </nav>
+                </aside>
+                <div className="flex-1 flex flex-col">
+                    <header className="flex h-14 items-center justify-end gap-4 border-b bg-white dark:bg-gray-950 px-6">
+                        {/* Tutaj można dodać powiadomienia i saldo */}
+                        <UserNav />
+                    </header>
+                    <main className="flex-1 p-8 bg-gray-50 dark:bg-black">{children}</main>
                 </div>
-                <nav className="flex flex-col p-2">
-                    <Link href="/dashboard" className="p-2 rounded-md hover:bg-gray-200">Dashboard</Link>
-                    <Link href="/dashboard/services" className="p-2 rounded-md hover:bg-gray-200">Usługi</Link> {/* <-- NOWY/ZAKTUALIZOWANY LINK */}
-                    <Link href="/dashboard/wallet" className="p-2 rounded-md hover:bg-gray-200">Portfel</Link>
-                    <Link href="/dashboard/tickets" className="p-2 rounded-md hover:bg-gray-200">Zgłoszenia</Link>
-                </nav>
-            </aside>
-            <main className="flex-1 p-8 bg-gray-100">{children}</main>
+            </div>
         </div>
     );
 }
