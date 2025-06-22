@@ -48,7 +48,7 @@ export default function UserTicketsPage() {
                 {tickets?.length === 0 && <p>Nie masz jeszcze żadnych zgłoszeń.</p>}
                 {tickets?.map((ticket) => (
                     <Link href={`/dashboard/tickets/${ticket.id}`} key={ticket.id}>
-                        <Card className="hover:bg-gray-50 cursor-pointer">
+                        <Card className="hover:bg-gray-50 cursor-pointer mb-4">
                             <CardHeader>
                                 <CardTitle className="flex justify-between items-center">
                                     <span>{ticket.subject}</span>
