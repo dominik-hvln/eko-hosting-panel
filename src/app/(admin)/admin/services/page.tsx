@@ -127,7 +127,7 @@ export default function AdminServicesPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Edytuj Usługę</DialogTitle>
-                        <DialogDescription>Zarządzaj usługą "{editingService?.name}" klienta {editingService?.user.email}.</DialogDescription>
+                        <DialogDescription>Zarządzaj usługą <strong>{editingService?.name}</strong> klienta <strong>{editingService?.user.email}</strong>.</DialogDescription>
                     </DialogHeader>
                     <ServiceForm form={form} onSubmit={handleFormSubmit} isPending={updateMutation.isPending} />
                 </DialogContent>

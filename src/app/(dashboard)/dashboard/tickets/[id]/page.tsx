@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { ReplyForm } from './ReplyForm';
+import { ReplyForm } from '@/components/tickets/ReplyForm';
 
 interface Message { id: string; content: string; createdAt: string; author: { email: string; role: string; }; }
 interface TicketDetails { id: string; subject: string; status: string; messages: Message[]; }

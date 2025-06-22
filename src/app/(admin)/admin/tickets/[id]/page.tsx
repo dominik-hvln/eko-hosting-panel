@@ -3,8 +3,10 @@
 import { apiClient } from '@/lib/api-helpers';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
+import toast from 'react-hot-toast';
+import { ReplyForm } from '@/components/tickets/ReplyForm'; // Importujemy nasz reużywalny formularz
 
 interface Message { id: string; content: string; createdAt: string; author: { email: string; role: string; }; }
 interface TicketDetails { id: string; subject: string; status: string; messages: Message[]; }
@@ -12,11 +14,25 @@ interface TicketDetails { id: string; subject: string; status: string; messages:
 export default function AdminTicketDetailsPage() {
     const params = useParams();
     const ticketId = params.id as string;
+    const queryClient = useQueryClient();
 
     const { data: ticket, isLoading, isError } = useQuery<TicketDetails>({
         queryKey: ['admin-ticket-details', ticketId],
         queryFn: () => apiClient.get(`/tickets/${ticketId}`),
         enabled: !!ticketId,
+    });
+
+    // Logika wysyłania odpowiedzi jest identyczna jak po stronie klienta
+    const replyMutation = useMutation({
+        mutationFn: (variables: { content: string }) =>
+            apiClient.post(`/tickets/${ticketId}/messages`, { content: variables.content }),
+        onSuccess: () => {
+            toast.success('Odpowiedź została wysłana!');
+            queryClient.invalidateQueries({ queryKey: ['admin-ticket-details', ticketId] });
+        },
+        onError: (error: Error) => {
+            toast.error(`Błąd: ${error.message}`);
+        },
     });
 
     if (isLoading) return <div>Ładowanie konwersacji...</div>;
@@ -44,6 +60,18 @@ export default function AdminTicketDetailsPage() {
                             </CardContent>
                         </Card>
                     ))}
+            </div>
+
+            <div className="mt-8">
+                <Card>
+                    <CardHeader><CardTitle className="text-xl">Odpowiedz jako Support</CardTitle></CardHeader>
+                    <CardContent>
+                        <ReplyForm
+                            onSubmit={(values) => replyMutation.mutate(values)}
+                            isPending={replyMutation.isPending}
+                        />
+                    </CardContent>
+                </Card>
             </div>
         </div>
     );
