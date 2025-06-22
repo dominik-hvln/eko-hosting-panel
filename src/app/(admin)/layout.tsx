@@ -52,6 +52,7 @@ export default function AdminLayout({
                 <nav className="flex flex-col p-2 space-y-1">
                     <Link href="/admin" className="p-2 rounded-md hover:bg-muted">Dashboard</Link>
                     <Link href="/admin/plans" className="p-2 rounded-md hover:bg-muted">Plany</Link>
+                    <Link href="/admin/services" className="p-2 rounded-md hover:bg-muted">Usługi</Link>
                     <Link href="/admin/users" className="p-2 rounded-md hover:bg-muted">Użytkownicy</Link>
                     <Link href="/admin/tickets" className="p-2 rounded-md hover:bg-muted">Zgłoszenia</Link>
                 </nav>
