@@ -1,5 +1,6 @@
 'use client';
 
+import { apiClient } from '@/lib/api-helpers';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -13,40 +14,19 @@ interface ServiceDetails {
     plan: { name: string; price: string; cpuLimit: number; ramLimit: number; diskSpaceLimit: number; };
 }
 
-const API_URL = 'http://localhost:4000';
-const getAuthHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('access_token')}` });
-const handleResponse = async (response: Response) => {
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Nieznany błąd serwera' }));
-        throw new Error(errorData.message || 'Wystąpił błąd API');
-    }
-    if (response.status === 204) { return; }
-    return response.json();
-};
-
-const fetchServiceDetails = (serviceId: string): Promise<ServiceDetails> =>
-    fetch(`${API_URL}/services/my-services/${serviceId}`, { headers: getAuthHeader() }).then(handleResponse);
-
-const toggleAutoRenew = (serviceId: string): Promise<ServiceDetails> =>
-    fetch(`${API_URL}/services/my-services/${serviceId}/toggle-renew`, { method: 'PATCH', headers: getAuthHeader() }).then(handleResponse);
-
-
 export default function ServiceDetailsPage() {
-    // Krok 1: Wywołujemy WSZYSTKIE haki na samej górze, bezwarunkowo.
     const params = useParams();
-    const queryClient = useQueryClient();
     const serviceId = params.id as string;
+    const queryClient = useQueryClient();
 
     const { data: service, isLoading, isError } = useQuery<ServiceDetails>({
         queryKey: ['service-details', serviceId],
-        queryFn: () => fetchServiceDetails(serviceId),
-        // Używamy opcji `enabled`, aby zapytanie uruchomiło się tylko, gdy mamy serviceId.
-        // To jest poprawny sposób na warunkowe pobieranie danych.
+        queryFn: () => apiClient.get(`/services/my-services/${serviceId}`),
         enabled: !!serviceId,
     });
 
     const toggleRenewMutation = useMutation({
-        mutationFn: () => toggleAutoRenew(serviceId),
+        mutationFn: () => apiClient.patch(`/services/my-services/${serviceId}/toggle-renew`, {}),
         onSuccess: () => {
             toast.success('Ustawienia automatycznego odnawiania zostały zmienione.');
             queryClient.invalidateQueries({ queryKey: ['service-details', serviceId] });
@@ -56,22 +36,18 @@ export default function ServiceDetailsPage() {
         },
     });
 
-    // Krok 2: Dopiero teraz, po wywołaniu wszystkich haków, możemy używać
-    // logiki warunkowej i "early returns".
-    if (isLoading || !serviceId) return <div>Ładowanie danych usługi...</div>;
+    if (!serviceId) return <div>Wczytywanie...</div>;
+    if (isLoading) return <div>Ładowanie danych usługi...</div>;
     if (isError) return <div>Wystąpił błąd lub nie masz dostępu do tej usługi.</div>;
     if (!service) return <div>Nie znaleziono usługi.</div>;
 
-    // Krok 3: Renderowanie widoku, gdy mamy już dane.
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-3xl font-bold">{service.name}</h1>
                 <div className="flex items-center gap-2 mt-2">
                     <Badge>{service.status.toUpperCase()}</Badge>
-                    <span className="text-sm text-muted-foreground">
-            Plan: {service.plan.name}
-          </span>
+                    <span className="text-sm text-muted-foreground">Plan: {service.plan.name}</span>
                 </div>
             </div>
             <Card>

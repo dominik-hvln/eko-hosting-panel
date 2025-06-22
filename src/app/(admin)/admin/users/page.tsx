@@ -1,82 +1,73 @@
 'use client';
-
-// Wszystkie te importy już znamy
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { apiClient } from '@/lib/api-helpers';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Role } from '@/common/enums/role.enum';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { MoreHorizontal } from 'lucide-react';
-import { useState } from 'react';
-import toast from 'react-hot-toast';
-import { UserForm } from './UserForm'; // Importujemy nasz nowy formularz
+import {FormMessage} from "@/components/ui/form"
+import {Badge} from "@/components/ui/badge";
 
-// --- Sekcja Logiki API, dostosowana do endpointów /users ---
+interface User { id: string; email: string; role: Role; isActive: boolean; createdAt: string; }
 
-interface User { id: string; email: string; role: string; isActive: boolean; createdAt: string; }
-const API_URL = 'http://localhost:4000';
-const getAuthHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('access_token')}` });
-
-const handleResponse = async (response: Response) => {
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Nieznany błąd serwera' }));
-        throw new Error(errorData.message || 'Wystąpił błąd API');
-    }
-    if (response.status === 204) return;
-    return response.json();
-};
-
-const fetchAdminUsers = (): Promise<User[]> => fetch(`${API_URL}/users`, { headers: getAuthHeader() }).then(handleResponse);
-const updateUser = ({ id, data }: { id: string; data: any }): Promise<User> => fetch(`${API_URL}/users/${id}`, {
-    method: 'PATCH',
-    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-}).then(handleResponse);
-const deleteUser = (id: string): Promise<void> => fetch(`${API_URL}/users/${id}`, { method: 'DELETE', headers: getAuthHeader() }).then(handleResponse);
-
-
-// --- Główny Komponent Strony ---
+const formSchema = z.object({
+    role: z.nativeEnum(Role),
+    isActive: z.boolean(),
+});
+type FormValues = z.infer<typeof formSchema>;
 
 export default function AdminUsersPage() {
     const [userToEdit, setUserToEdit] = useState<User | null>(null);
     const queryClient = useQueryClient();
 
-    const { data: users, isLoading, isError } = useQuery<User[]>({
-        queryKey: ['admin-users'],
-        queryFn: fetchAdminUsers,
-    });
+    const { data: users, isLoading, isError } = useQuery<User[]>({ queryKey: ['admin-users'], queryFn: () => apiClient.get('/users') });
+    const { mutate: updateUser, isPending: isUpdating } = useMutation({ mutationFn: (vars: {id: string, data: FormValues}) => apiClient.patch(`/users/${vars.id}`, vars.data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-users'] }); toast.success('Użytkownik zaktualizowany!'); setUserToEdit(null); }, onError: (e: Error) => toast.error(e.message) });
+    const { mutate: deleteUser } = useMutation({ mutationFn: (id: string) => apiClient.delete(`/users/${id}`), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-users'] }); toast.success('Użytkownik usunięty!'); }, onError: (e: Error) => toast.error(e.message) });
 
-    const onMutationSuccess = (message: string) => {
-        queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-        toast.success(message);
+    const form = useForm<FormValues>({ resolver: zodResolver(formSchema) });
+
+    useEffect(() => {
+        if (userToEdit) {
+            form.reset({ role: userToEdit.role, isActive: userToEdit.isActive });
+        }
+    }, [userToEdit, form]);
+
+    const handleFormSubmit = (values: FormValues) => {
+        if (userToEdit) {
+            updateUser({ id: userToEdit.id, data: values });
+        }
     };
-    const onMutationError = (error: Error) => { toast.error(`Wystąpił błąd: ${error.message}`); };
-
-    const updateMutation = useMutation({ mutationFn: updateUser, onSuccess: () => { onMutationSuccess('Użytkownik pomyślnie zaktualizowany!'); setUserToEdit(null); }, onError: onMutationError });
-    const deleteMutation = useMutation({ mutationFn: deleteUser, onSuccess: () => onMutationSuccess('Użytkownik pomyślnie usunięty!'), onError: onMutationError });
 
     if (isLoading) return <div>Ładowanie użytkowników...</div>;
     if (isError) return <div>Wystąpił błąd podczas pobierania danych.</div>;
 
     return (
-        <div>
-            <div className="flex items-center justify-between mb-6">
+        <div className="container mx-auto py-8 px-4 md:px-6">
+            <div className="flex items-center justify-between border-b pb-4 mb-6">
                 <h1 className="text-3xl font-bold">Zarządzanie Użytkownikami</h1>
             </div>
-            <Card>
+            <Card className="shadow-sm">
                 <CardHeader><CardTitle>Lista Użytkowników</CardTitle></CardHeader>
                 <CardContent>
                     <Table>
-                        <TableHeader>
-                            <TableRow><TableHead>Email</TableHead><TableHead>Rola</TableHead><TableHead>Status</TableHead><TableHead>Data Rejestracji</TableHead><TableHead className="text-right">Akcje</TableHead></TableRow>
-                        </TableHeader>
+                        <TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Rola</TableHead><TableHead>Status</TableHead><TableHead>Data Rejestracji</TableHead><TableHead className="text-right">Akcje</TableHead></TableRow></TableHeader>
                         <TableBody>
                             {users?.map((user) => (
-                                <TableRow key={user.id}>
+                                <TableRow key={user.id} className="hover:bg-muted/50">
                                     <TableCell className="font-medium">{user.email}</TableCell>
-                                    <TableCell>{user.role}</TableCell>
+                                    <TableCell><Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role}</Badge></TableCell>
                                     <TableCell>{user.isActive ? 'Aktywny' : 'Nieaktywny'}</TableCell>
                                     <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                                     <TableCell className="text-right">
@@ -90,7 +81,7 @@ export default function AdminUsersPage() {
                                                         <AlertDialogHeader><AlertDialogTitle>Czy na pewno chcesz usunąć tego użytkownika?</AlertDialogTitle><AlertDialogDescription>Tej akcji nie można cofnąć.</AlertDialogDescription></AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Anuluj</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => deleteMutation.mutate(user.id)} className="bg-red-600 hover:bg-red-700">Usuń na stałe</AlertDialogAction>
+                                                            <AlertDialogAction onClick={() => deleteUser(mutate(user.id))} className="bg-red-600 hover:bg-red-700">Usuń na stałe</AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                 </AlertDialog>
@@ -103,21 +94,14 @@ export default function AdminUsersPage() {
                     </Table>
                 </CardContent>
             </Card>
-
-            <Dialog open={!!userToEdit} onOpenChange={(isOpen) => !isOpen && setUserToEdit(null)}>
+            <Dialog open={!!userToEdit} onOpenChange={(isOpen) => { if (!isOpen) setUserToEdit(null); }}>
                 <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edytuj Użytkownika: {userToEdit?.email}</DialogTitle>
-                        {/* DODAJEMY TĘ LINIĘ */}
-                        <DialogDescription>
-                            Zmień poniższe dane, aby zaktualizować konto użytkownika.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <UserForm
-                        initialData={userToEdit!}
-                        isPending={updateMutation.isPending}
-                        onSubmit={(data) => updateMutation.mutate({ id: userToEdit!.id, data })}
-                    />
+                    <DialogHeader><DialogTitle>Edytuj Użytkownika: {userToEdit?.email}</DialogTitle><DialogDescription>Zmień poniższe dane, aby zaktualizować konto.</DialogDescription></DialogHeader>
+                    <Form {...form}><form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+                        <FormField control={form.control} name="role" render={({ field }) => (<FormItem><FormLabel>Rola</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value={Role.USER}>Użytkownik</SelectItem><SelectItem value={Role.ADMIN}>Administrator</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="isActive" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3"><div className="space-y-0.5"><FormLabel>Aktywny</FormLabel><FormDescription>Czy konto może się logować.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                        <Button type="submit" disabled={isUpdating}>{isUpdating ? 'Zapisywanie...' : 'Zapisz zmiany'}</Button>
+                    </form></Form>
                 </DialogContent>
             </Dialog>
         </div>

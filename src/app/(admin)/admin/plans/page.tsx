@@ -1,173 +1,81 @@
 'use client';
 
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
+import { apiClient } from '@/lib/api-helpers';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { MoreHorizontal } from 'lucide-react';
-import { useState } from 'react';
-import { PlanForm } from './PlanForm';
-import toast from 'react-hot-toast';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { PlanForm, formSchema, type FormValues } from './PlanForm'; // Importujemy formularz, schemat i typ
 
-interface Plan {
-    id: string;
-    name: string;
-    price: string;
-    cpuLimit: number;
-    ramLimit: number;
-    diskSpaceLimit: number;
-    monthlyTransferLimit: number;
-    isPublic: boolean;
-}
-
-const API_URL = 'http://localhost:4000';
-
-const getAuthHeader = () => {
-    const token = localStorage.getItem('access_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
-const handleResponse = async (response: Response) => {
-    // Obsługa błędów pozostaje bez zmian
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({
-            message: 'Nieznany błąd serwera',
-        }));
-        throw new Error(errorData.message || 'Wystąpił błąd API');
-    }
-
-    if (response.status === 204) {
-        return;
-    }
-
-    return response.json();
-};
-
-const fetchAdminPlans = (): Promise<Plan[]> =>
-    fetch(`${API_URL}/plans`, { headers: getAuthHeader() }).then(handleResponse);
-
-const createPlan = (newPlanData: any): Promise<Plan> =>
-    fetch(`${API_URL}/plans`, {
-        method: 'POST',
-        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPlanData),
-    }).then(handleResponse);
-
-const updatePlan = ({ id, data }: { id: string; data: any }): Promise<Plan> =>
-    fetch(`${API_URL}/plans/${id}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }).then(handleResponse);
-
-const deletePlan = (id: string): Promise<void> =>
-    fetch(`${API_URL}/plans/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeader(), 'Content-Type': 'application/json',
-    }).then(handleResponse);
-
+interface Plan { id: string; name: string; price: string; isPublic: boolean; cpuLimit: number; ramLimit: number; diskSpaceLimit: number; monthlyTransferLimit: number; }
 
 export default function AdminPlansPage() {
-    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-    const [planToEdit, setPlanToEdit] = useState<Plan | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
     const queryClient = useQueryClient();
 
-    const { data: plans, isLoading, isError } = useQuery<Plan[]>({
-        queryKey: ['admin-plans'],
-        queryFn: fetchAdminPlans,
+    const form = useForm<FormValues>({
+        resolver: zodResolver(formSchema),
+        defaultValues: { name: '', price: 0, isPublic: true, cpuLimit: 100, ramLimit: 1024, diskSpaceLimit: 10240, monthlyTransferLimit: 1000 },
     });
 
-    const onMutationSuccess = (message: string) => {
-        queryClient.invalidateQueries({ queryKey: ['admin-plans'] });
-        toast.success(message);
-    };
+    useEffect(() => {
+        if (editingPlan) {
+            form.reset({ ...editingPlan, price: parseFloat(editingPlan.price) });
+        } else {
+            form.reset({ name: '', price: 0, isPublic: true, cpuLimit: 100, ramLimit: 1024, diskSpaceLimit: 10240, monthlyTransferLimit: 1000 });
+        }
+    }, [editingPlan, form]);
 
-    const onMutationError = (error: Error) => {
-        toast.error(`Wystąpił błąd: ${error.message}`);
-    };
+    const { data: plans, isLoading, isError } = useQuery<Plan[]>({ queryKey: ['admin-plans'], queryFn: () => apiClient.get('/plans') });
+    const onMutationSuccess = (message: string) => { queryClient.invalidateQueries({ queryKey: ['admin-plans'] }); toast.success(message); setIsDialogOpen(false); setEditingPlan(null); };
+    const onMutationError = (error: Error) => { toast.error(`Wystąpił błąd: ${error.message}`); };
 
-    const createMutation = useMutation({ mutationFn: createPlan, onSuccess: () => { onMutationSuccess('Plan pomyślnie utworzony!'); setIsCreateDialogOpen(false); }, onError: onMutationError });
-    const updateMutation = useMutation({ mutationFn: updatePlan, onSuccess: () => { onMutationSuccess('Plan pomyślnie zaktualizowany!'); setPlanToEdit(null); }, onError: onMutationError });
-    const deleteMutation = useMutation({ mutationFn: deletePlan, onSuccess: () => onMutationSuccess('Plan pomyślnie usunięty!'), onError: onMutationError });
+    const createMutation = useMutation({ mutationFn: (data: FormValues) => apiClient.post('/plans', data), onSuccess: () => onMutationSuccess('Plan pomyślnie utworzony!'), onError: onMutationError });
+    const updateMutation = useMutation({ mutationFn: (vars: { id: string; data: FormValues }) => apiClient.patch(`/plans/${vars.id}`, vars.data), onSuccess: () => onMutationSuccess('Plan pomyślnie zaktualizowany!'), onError: onMutationError });
+    const deleteMutation = useMutation({ mutationFn: (id: string) => apiClient.delete(`/plans/${id}`), onSuccess: () => onMutationSuccess('Plan pomyślnie usunięty!'), onError: onMutationError });
 
-    if (isLoading) return <div>Ładowanie planów...</div>;
-    if (isError) return <div>Wystąpił błąd podczas pobierania danych.</div>;
-
-    const handleFormSubmit = (values: any) => {
-        if (planToEdit) {
-            updateMutation.mutate({ id: planToEdit.id, data: values });
+    const handleFormSubmit = (values: FormValues) => {
+        if (editingPlan) {
+            updateMutation.mutate({ id: editingPlan.id, data: values });
         } else {
             createMutation.mutate(values);
         }
     };
 
-    const isMutationPending = createMutation.isPending || updateMutation.isPending;
+    const isPending = createMutation.isPending || updateMutation.isPending;
+
+    if (isLoading) return <div className="p-8">Ładowanie planów...</div>;
+    if (isError) return <div className="p-8">Wystąpił błąd podczas pobierania danych.</div>;
 
     return (
-        <div>
-            <div className="flex items-center justify-between mb-6">
+        <div className="container mx-auto py-8 px-4 md:px-6">
+            <div className="flex items-center justify-between border-b pb-4 mb-6">
                 <h1 className="text-3xl font-bold">Zarządzanie Planami</h1>
-                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button>Dodaj nowy plan</Button>
-                    </DialogTrigger>
+                <Dialog open={isDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) setEditingPlan(null); setIsDialogOpen(isOpen); }}>
+                    <DialogTrigger asChild><Button onClick={() => setEditingPlan(null)}>Dodaj nowy plan</Button></DialogTrigger>
                     <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Nowy Plan</DialogTitle>
-                        </DialogHeader>
-                        <PlanForm onSubmit={handleFormSubmit} isPending={isMutationPending} />
+                        <DialogHeader><DialogTitle>Nowy Plan</DialogTitle><DialogDescription>Wypełnij pola, aby stworzyć plan.</DialogDescription></DialogHeader>
+                        <PlanForm onSubmit={handleFormSubmit} isPending={isPending} form={form} />
                     </DialogContent>
                 </Dialog>
             </div>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Lista Planów Hostingowych</CardTitle>
-                </CardHeader>
+            <Card className="shadow-sm">
+                <CardHeader><CardTitle>Lista Planów Hostingowych</CardTitle></CardHeader>
                 <CardContent>
                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Nazwa</TableHead>
-                                <TableHead>Cena (PLN)</TableHead>
-                                <TableHead>Publiczny</TableHead>
-                                <TableHead className="text-right">Akcje</TableHead>
-                            </TableRow>
-                        </TableHeader>
+                        <TableHeader><TableRow><TableHead>Nazwa</TableHead><TableHead>Cena (PLN)</TableHead><TableHead>Publiczny</TableHead><TableHead className="text-right">Akcje</TableHead></TableRow></TableHeader>
                         <TableBody>
                             {plans?.map((plan) => (
-                                <TableRow key={plan.id}>
+                                <TableRow key={plan.id} className="hover:bg-muted/50">
                                     <TableCell className="font-medium">{plan.name}</TableCell>
                                     <TableCell>{plan.price}</TableCell>
                                     <TableCell>{plan.isPublic ? 'Tak' : 'Nie'}</TableCell>
@@ -175,19 +83,14 @@ export default function AdminPlansPage() {
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => setPlanToEdit(plan)}>Edytuj</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => { setEditingPlan(plan); setIsDialogOpen(true); }}>Edytuj</DropdownMenuItem>
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild><DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">Usuń</DropdownMenuItem></AlertDialogTrigger>
                                                     <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Czy na pewno chcesz usunąć ten plan?</AlertDialogTitle>
-                                                            <AlertDialogDescription>Tej akcji nie można cofnąć.</AlertDialogDescription>
-                                                        </AlertDialogHeader>
+                                                        <AlertDialogHeader><AlertDialogTitle>Czy na pewno chcesz usunąć ten plan?</AlertDialogTitle><AlertDialogDescription>Tej akcji nie można cofnąć.</AlertDialogDescription></AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Anuluj</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => deleteMutation.mutate(plan.id)} className="bg-red-600 hover:bg-red-700">
-                                                                Usuń na stałe
-                                                            </AlertDialogAction>
+                                                            <AlertDialogAction onClick={() => deleteMutation.mutate(plan.id)} className="bg-red-600 hover:bg-red-700">Usuń na stałe</AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
                                                 </AlertDialog>
@@ -201,21 +104,8 @@ export default function AdminPlansPage() {
                 </CardContent>
             </Card>
 
-            <Dialog open={!!planToEdit} onOpenChange={(isOpen) => !isOpen && setPlanToEdit(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Edytuj Plan: {planToEdit?.name}</DialogTitle>
-                        <DialogDescription>
-                            Zmień poniższe dane, aby zaktualizować plan.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <PlanForm
-                        initialData={planToEdit!}
-                        isPending={updateMutation.isPending}
-                        onSubmit={handleFormSubmit}
-                    />
-                </DialogContent>
-            </Dialog>
+            {/* Ten dialog jest teraz kontrolowany przez logikę w przycisku Edytuj, nie potrzebujemy go duplikować */}
+            {/* <Dialog open={!!editingPlan} ... /> */}
         </div>
     );
 }

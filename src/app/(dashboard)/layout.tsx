@@ -37,7 +37,8 @@ export default function DashboardLayout({
                 </div>
                 <nav className="flex flex-col p-2">
                     <Link href="/dashboard" className="p-2 rounded-md hover:bg-gray-200">Dashboard</Link>
-                    <Link href="/dashboard/wallet" className="p-2 rounded-md hover:bg-gray-200">Portfel</Link> {/* <-- NOWY LINK */}
+                    <Link href="/dashboard/services" className="p-2 rounded-md hover:bg-gray-200">Usługi</Link> {/* <-- NOWY/ZAKTUALIZOWANY LINK */}
+                    <Link href="/dashboard/wallet" className="p-2 rounded-md hover:bg-gray-200">Portfel</Link>
                     <Link href="/dashboard/tickets" className="p-2 rounded-md hover:bg-gray-200">Zgłoszenia</Link>
                 </nav>
             </aside>

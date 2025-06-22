@@ -1,8 +1,11 @@
 'use client';
 
-import { z } from 'zod';
 import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
     Form,
     FormControl,
@@ -12,15 +15,11 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { useEffect } from 'react';
 
-// Definiujemy schemat walidacji za pomocą Zod
-const formSchema = z.object({
-    name: z.string().min(3, 'Nazwa musi mieć co najmniej 3 znaki.'),
-    price: z.coerce.number().positive('Cena musi być liczbą dodatnią.'),
+// Definiujemy i eksportujemy schemat i typ, aby strona-rodzic też mogła ich używać
+export const formSchema = z.object({
+    name: z.string().min(2, { message: 'Nazwa musi mieć co najmniej 2 znaki.' }),
+    price: z.coerce.number().min(0, { message: 'Cena nie może być ujemna.' }),
     cpuLimit: z.coerce.number().int().positive(),
     ramLimit: z.coerce.number().int().positive(),
     diskSpaceLimit: z.coerce.number().int().positive(),
@@ -28,35 +27,16 @@ const formSchema = z.object({
     isPublic: z.boolean().default(true),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+export type FormValues = z.infer<typeof formSchema>;
 
-// Definiujemy typy dla propsów komponentu
 interface PlanFormProps {
     onSubmit: (values: FormValues) => void;
     isPending: boolean;
-    initialData?: Partial<FormValues>;
+    // Przekazujemy całą instancję formularza z góry, aby uniknąć błędów
+    form: ReturnType<typeof useForm<FormValues>>;
 }
 
-export function PlanForm({ onSubmit, isPending, initialData }: PlanFormProps) {
-    const form = useForm<FormValues>({
-        resolver: zodResolver(formSchema),
-        defaultValues: initialData || {
-            name: '',
-            price: 10.0,
-            cpuLimit: 100,
-            ramLimit: 1024,
-            diskSpaceLimit: 5120,
-            monthlyTransferLimit: 50,
-            isPublic: true,
-        },
-    });
-
-    useEffect(() => {
-        if (initialData) {
-            form.reset(initialData);
-        }
-    }, [initialData, form]);
-
+export function PlanForm({ onSubmit, isPending, form }: PlanFormProps) {
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -86,7 +66,7 @@ export function PlanForm({ onSubmit, isPending, initialData }: PlanFormProps) {
                         </FormItem>
                     )}
                 />
-                {/* Tutaj można dodać resztę pól (cpu, ram, etc.) w ten sam sposób */}
+                {/* W przyszłości można tu dodać resztę pól w ten sam sposób */}
                 <FormField
                     control={form.control}
                     name="isPublic"
@@ -104,8 +84,8 @@ export function PlanForm({ onSubmit, isPending, initialData }: PlanFormProps) {
                         </FormItem>
                     )}
                 />
-                <Button type="submit" disabled={isPending}>
-                    {isPending ? 'Zapisywanie...' : 'Zapisz Plan'}
+                <Button type="submit" disabled={isPending} className="w-full">
+                    {isPending ? 'Zapisywanie...' : 'Zapisz'}
                 </Button>
             </form>
         </Form>

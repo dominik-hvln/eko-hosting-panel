@@ -3,44 +3,28 @@
 import { apiClient } from '@/lib/api-helpers';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import toast from 'react-hot-toast';
-import { ReplyForm } from './ReplyForm';
 
 interface Message { id: string; content: string; createdAt: string; author: { email: string; role: string; }; }
 interface TicketDetails { id: string; subject: string; status: string; messages: Message[]; }
 
-export default function TicketDetailsPage() {
+export default function AdminTicketDetailsPage() {
     const params = useParams();
     const ticketId = params.id as string;
-    const queryClient = useQueryClient();
 
     const { data: ticket, isLoading, isError } = useQuery<TicketDetails>({
-        queryKey: ['ticket-details', ticketId],
+        queryKey: ['admin-ticket-details', ticketId],
         queryFn: () => apiClient.get(`/tickets/${ticketId}`),
         enabled: !!ticketId,
     });
 
-    const replyMutation = useMutation({
-        mutationFn: (variables: { ticketId: string; content: string }) =>
-            apiClient.post(`/tickets/${variables.ticketId}/messages`, { content: variables.content }),
-        onSuccess: () => {
-            toast.success('Odpowiedź została wysłana!');
-            queryClient.invalidateQueries({ queryKey: ['ticket-details', ticketId] });
-        },
-        onError: (error: Error) => {
-            toast.error(`Błąd: ${error.message}`);
-        },
-    });
-
-    if (!ticketId) return <div>Wczytywanie...</div>;
     if (isLoading) return <div>Ładowanie konwersacji...</div>;
     if (isError) return <div>Wystąpił błąd lub nie masz dostępu do tego zgłoszenia.</div>;
     if (!ticket) return <div>Nie znaleziono danych dla tego zgłoszenia.</div>;
 
     return (
-        <div className="space-y-6">
+        <div className="container mx-auto py-8 px-4 md:px-6">
             <div className="mb-6">
                 <h1 className="text-3xl font-bold">{ticket.subject}</h1>
                 <Badge className="mt-2">{ticket.status.toUpperCase()}</Badge>
@@ -60,19 +44,6 @@ export default function TicketDetailsPage() {
                             </CardContent>
                         </Card>
                     ))}
-            </div>
-            <div className="mt-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-xl">Twoja odpowiedź</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <ReplyForm
-                            onSubmit={(values) => replyMutation.mutate({ ticketId, content: values.content })}
-                            isPending={replyMutation.isPending}
-                        />
-                    </CardContent>
-                </Card>
             </div>
         </div>
     );
