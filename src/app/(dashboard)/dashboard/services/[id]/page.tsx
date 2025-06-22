@@ -3,53 +3,66 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { useQuery } from '@tanstack/react-query';
+import { Switch } from '@/components/ui/switch';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
+import toast from 'react-hot-toast';
 
-// Definiujemy typy dla danych
 interface ServiceDetails {
-    id: string;
-    name: string;
-    status: string;
-    expiresAt: string | null;
-    autoRenew: boolean;
-    plan: {
-        name: string;
-        price: string;
-        cpuLimit: number;
-        ramLimit: number;
-        diskSpaceLimit: number;
-    };
+    id: string; name: string; status: string; expiresAt: string | null; autoRenew: boolean;
+    plan: { name: string; price: string; cpuLimit: number; ramLimit: number; diskSpaceLimit: number; };
 }
 
 const API_URL = 'http://localhost:4000';
 const getAuthHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('access_token')}` });
-
-const fetchServiceDetails = async (serviceId: string): Promise<ServiceDetails> => {
-    const token = localStorage.getItem('access_token');
-    if (!token) throw new Error('Brak tokenu.');
-
-    const response = await fetch(`${API_URL}/services/my-services/${serviceId}`, {
-        headers: getAuthHeader(),
-    });
-    if (!response.ok) throw new Error('Nie udało się pobrać szczegółów usługi.');
+const handleResponse = async (response: Response) => {
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Nieznany błąd serwera' }));
+        throw new Error(errorData.message || 'Wystąpił błąd API');
+    }
+    if (response.status === 204) { return; }
     return response.json();
 };
 
+const fetchServiceDetails = (serviceId: string): Promise<ServiceDetails> =>
+    fetch(`${API_URL}/services/my-services/${serviceId}`, { headers: getAuthHeader() }).then(handleResponse);
+
+const toggleAutoRenew = (serviceId: string): Promise<ServiceDetails> =>
+    fetch(`${API_URL}/services/my-services/${serviceId}/toggle-renew`, { method: 'PATCH', headers: getAuthHeader() }).then(handleResponse);
+
+
 export default function ServiceDetailsPage() {
+    // Krok 1: Wywołujemy WSZYSTKIE haki na samej górze, bezwarunkowo.
     const params = useParams();
+    const queryClient = useQueryClient();
     const serviceId = params.id as string;
 
     const { data: service, isLoading, isError } = useQuery<ServiceDetails>({
         queryKey: ['service-details', serviceId],
         queryFn: () => fetchServiceDetails(serviceId),
-        enabled: !!serviceId, // Uruchom zapytanie tylko, gdy mamy ID z URL
+        // Używamy opcji `enabled`, aby zapytanie uruchomiło się tylko, gdy mamy serviceId.
+        // To jest poprawny sposób na warunkowe pobieranie danych.
+        enabled: !!serviceId,
     });
 
-    if (isLoading) return <div>Ładowanie danych usługi...</div>;
+    const toggleRenewMutation = useMutation({
+        mutationFn: () => toggleAutoRenew(serviceId),
+        onSuccess: () => {
+            toast.success('Ustawienia automatycznego odnawiania zostały zmienione.');
+            queryClient.invalidateQueries({ queryKey: ['service-details', serviceId] });
+        },
+        onError: (error: Error) => {
+            toast.error(`Błąd: ${error.message}`);
+        },
+    });
+
+    // Krok 2: Dopiero teraz, po wywołaniu wszystkich haków, możemy używać
+    // logiki warunkowej i "early returns".
+    if (isLoading || !serviceId) return <div>Ładowanie danych usługi...</div>;
     if (isError) return <div>Wystąpił błąd lub nie masz dostępu do tej usługi.</div>;
     if (!service) return <div>Nie znaleziono usługi.</div>;
 
+    // Krok 3: Renderowanie widoku, gdy mamy już dane.
     return (
         <div className="space-y-6">
             <div>
@@ -61,13 +74,16 @@ export default function ServiceDetailsPage() {
           </span>
                 </div>
             </div>
-
             <Card>
                 <CardHeader><CardTitle>Informacje o Usłudze</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex justify-between">
+                    <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Automatyczne odnawianie</span>
-                        <span className="font-medium">{service.autoRenew ? 'Włączone' : 'Wyłączone'}</span>
+                        <Switch
+                            checked={service.autoRenew}
+                            onCheckedChange={() => toggleRenewMutation.mutate()}
+                            disabled={toggleRenewMutation.isPending}
+                        />
                     </div>
                     <Separator />
                     <div className="flex justify-between">
@@ -78,7 +94,6 @@ export default function ServiceDetailsPage() {
                     </div>
                 </CardContent>
             </Card>
-
             <Card>
                 <CardHeader><CardTitle>Parametry Planu</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
