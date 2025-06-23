@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ServiceStatus } from '@/common/enums/service-status.enum';
+import { useEffect } from 'react';
 
-// Definiujemy schemat walidacji dla edytowalnych pól
 export const formSchema = z.object({
-    status: z.enum(['active', 'suspended', 'cancelled']),
+    status: z.nativeEnum(ServiceStatus),
     autoRenew: z.boolean(),
 });
 
@@ -19,10 +20,21 @@ export type FormValues = z.infer<typeof formSchema>;
 interface ServiceFormProps {
     onSubmit: (values: FormValues) => void;
     isPending: boolean;
-    form: ReturnType<typeof useForm<FormValues>>;
+    initialData?: FormValues;
 }
 
-export function ServiceForm({ onSubmit, isPending, form }: ServiceFormProps) {
+export function ServiceForm({ onSubmit, isPending, initialData }: ServiceFormProps) {
+    const form = useForm<FormValues>({
+        resolver: zodResolver(formSchema),
+        defaultValues: initialData,
+    });
+
+    useEffect(() => {
+        if (initialData) {
+            form.reset(initialData);
+        }
+    }, [initialData, form]);
+
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -34,19 +46,15 @@ export function ServiceForm({ onSubmit, isPending, form }: ServiceFormProps) {
                             <FormLabel>Status Usługi</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Wybierz status" />
-                                    </SelectTrigger>
+                                    <SelectTrigger><SelectValue placeholder="Wybierz status" /></SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="active">Aktywna</SelectItem>
-                                    <SelectItem value="suspended">Zawieszona</SelectItem>
-                                    <SelectItem value="cancelled">Anulowana</SelectItem>
+                                    <SelectItem value={ServiceStatus.ACTIVE}>Aktywna</SelectItem>
+                                    <SelectItem value={ServiceStatus.SUSPENDED}>Zawieszona</SelectItem>
+                                    <SelectItem value={ServiceStatus.CANCELLED}>Anulowana</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <FormDescription>
-                                Zmiana statusu usługi (np. zawieszenie za brak płatności).
-                            </FormDescription>
+                            <FormDescription>Zmień status usługi klienta.</FormDescription>
                         </FormItem>
                     )}
                 />
@@ -57,9 +65,6 @@ export function ServiceForm({ onSubmit, isPending, form }: ServiceFormProps) {
                         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                             <div className="space-y-0.5">
                                 <FormLabel>Automatyczne odnawianie</FormLabel>
-                                <FormDescription>
-                                    Czy usługa ma być automatycznie odnawiana na kolejny okres.
-                                </FormDescription>
                             </div>
                             <FormControl>
                                 <Switch checked={field.value} onCheckedChange={field.onChange} />
