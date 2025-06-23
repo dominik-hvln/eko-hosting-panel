@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 interface DashboardSummary {
+    user: { firstName: string | null, email: string };
     balance: string;
     ekoPoints: number;
     services: { id: string; name: string; status: string; plan: { name: string; }; }[];
@@ -38,7 +39,10 @@ export default function DashboardPage() {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold">Dashboard</h1>
+            <h1 className="text-3xl font-bold">
+                Cześć, {data?.user.firstName || data?.user.email}!
+            </h1>
+            <p className="text-muted-foreground">Oto podsumowanie Twojego konta.</p>
             <div className="grid gap-6 md:grid-cols-3">
                 <Card>
                     <CardHeader><CardTitle>Saldo Portfela</CardTitle></CardHeader>
