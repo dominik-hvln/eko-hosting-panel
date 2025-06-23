@@ -29,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <Link href="/dashboard/services" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Usługi</Link>
                         <Link href="/dashboard/wallet" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Portfel</Link>
                         <Link href="/dashboard/tickets" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Zgłoszenia</Link>
+                        <Link href="/dashboard/invoices" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Faktury</Link>
                         <Link href="/dashboard/settings" className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800">Ustawienia</Link>
                     </nav>
                 </aside>

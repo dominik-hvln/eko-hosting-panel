@@ -60,4 +60,12 @@ export const apiClient = {
             method: 'DELETE',
             headers: getAuthenticatedHeaders(),
         }).then(handleResponse),
+
+    getBlob: (endpoint: string): Promise<Blob> =>
+        fetch(`${API_URL}${endpoint}`, {
+            headers: getAuthenticatedHeaders(),
+        }).then(response => {
+            if (!response.ok) { throw new Error('Błąd pobierania pliku'); }
+            return response.blob(); // Zwracamy plik jako Blob
+        }),
 };
