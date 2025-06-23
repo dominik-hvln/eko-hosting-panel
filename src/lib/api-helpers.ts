@@ -12,12 +12,23 @@ const getAuthenticatedHeaders = (): HeadersInit => {
 };
 
 const handleResponse = async (response: Response) => {
+    // Jeśli odpowiedź NIE jest ok (np. błąd 401, 403, 500)
     if (!response.ok) {
+        // Sprawdzamy, czy to błąd autoryzacji (token wygasł, niepoprawny)
+        if (response.status === 401) {
+            // Czyścimy storage i przekierowujemy na stronę logowania
+            localStorage.removeItem('access_token');
+            sessionStorage.removeItem('original_admin_token');
+            // Używamy window.location.href, aby wymusić pełne przeładowanie aplikacji
+            window.location.href = '/login';
+        }
+
         const errorData = await response.json().catch(() => ({
             message: `Błąd serwera: ${response.statusText}`,
         }));
         throw new Error(errorData.message || 'Wystąpił nieznany błąd API');
     }
+
     if (response.status === 204) {
         return;
     }
