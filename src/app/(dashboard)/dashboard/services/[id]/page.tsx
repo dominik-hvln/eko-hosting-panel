@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { CreditCard, Repeat, Loader2 } from 'lucide-react';
 
 interface ServiceDetails {
     id: string;
@@ -19,6 +20,7 @@ interface ServiceDetails {
     plan: {
         name: string;
         price: string;
+        yearlyPrice: string | null;
         cpuLimit: number;
         ramLimit: number;
         diskSpaceLimit: number;
@@ -55,12 +57,26 @@ export default function ServiceDetailsPage() {
         mutationFn: () => apiClient.post(`/payments/service-renewal/${serviceId}`, {}),
         onSuccess: (data: { paymentUrl: string }) => {
             toast.success('Przekierowywanie do strony płatności...');
-            window.open(data.paymentUrl, '_blank');
+            window.location.href = data.paymentUrl;
         },
         onError: (error: Error) => {
             toast.error(`Błąd: ${error.message}`);
         },
     });
+
+    // --- NOWA MUTACJA DO TWORZENIA SUBSKRYPCJI ---
+    const subscribeMutation = useMutation({
+        mutationFn: () => apiClient.post(`/payments/create-subscription/${serviceId}`, {}),
+        onSuccess: (data: { paymentUrl: string }) => {
+            toast.success('Przekierowywanie do strony płatności subskrypcji...');
+            window.location.href = data.paymentUrl; // Przekierowujemy użytkownika do Stripe
+        },
+        onError: (error: Error) => {
+            toast.error(`Błąd subskrypcji: ${error.message}`);
+        },
+    });
+    // ---------------------------------------------
+
 
     if (!serviceId || isLoading) return <div className="p-8">Ładowanie danych usługi...</div>;
     if (isError) return <div className="p-8">Wystąpił błąd lub nie masz dostępu do tej usługi.</div>;
@@ -73,19 +89,22 @@ export default function ServiceDetailsPage() {
                 <div className="flex items-center gap-2 mt-2">
                     <Badge>{service.status.toUpperCase()}</Badge>
                     <span className="text-sm text-muted-foreground">
-            Plan: {service.plan.name}
-          </span>
+                        Plan: {service.plan.name}
+                    </span>
                 </div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Informacje o Usłudze</CardTitle>
+                        <CardTitle>Zarządzanie Usługą</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Automatyczne odnawianie</span>
+                        <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                            <div>
+                                <h4 className="font-semibold">Automatyczne odnawianie z portfela</h4>
+                                <p className="text-xs text-muted-foreground">Użyj środków z portfela do odnowienia usługi.</p>
+                            </div>
                             <Switch
                                 checked={service.autoRenew}
                                 onCheckedChange={() => toggleRenewMutation.mutate()}
@@ -101,9 +120,23 @@ export default function ServiceDetailsPage() {
                                 </p>
                             </div>
                             <Button onClick={() => renewalMutation.mutate()} disabled={renewalMutation.isPending}>
-                                {renewalMutation.isPending ? 'Przetwarzanie...' : 'Odnów i Zapłać'}
+                                {renewalMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Repeat className="mr-2 h-4 w-4" />}
+                                Odnów jednorazowo
                             </Button>
                         </div>
+                        <Separator />
+                        {/* --- NOWY PRZYCISK I LOGIKA --- */}
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h4 className="font-semibold">Płatność cykliczna (Subskrypcja)</h4>
+                                <p className="text-xs text-muted-foreground">"Ustaw i zapomnij". Automatyczne pobieranie z karty.</p>
+                            </div>
+                            <Button onClick={() => subscribeMutation.mutate()} disabled={subscribeMutation.isPending}>
+                                {subscribeMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                                Zasubskrybuj
+                            </Button>
+                        </div>
+                        {/* ----------------------------- */}
                     </CardContent>
                 </Card>
                 <Card>
@@ -111,7 +144,9 @@ export default function ServiceDetailsPage() {
                         <CardTitle>Parametry Planu</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="flex justify-between"><span className="text-muted-foreground">Cena</span><span className="font-medium">{service.plan.price} PLN / msc</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Cena miesięczna</span><span className="font-medium">{service.plan.price} PLN</span></div>
+                        <Separator />
+                        <div className="flex justify-between"><span className="text-muted-foreground">Cena roczna</span><span className="font-medium">{service.plan.yearlyPrice || 'N/A'} PLN</span></div>
                         <Separator />
                         <div className="flex justify-between"><span className="text-muted-foreground">RAM</span><span className="font-medium">{service.plan.ramLimit} MB</span></div>
                         <Separator />
