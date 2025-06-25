@@ -55,6 +55,7 @@ export default function AdminLayout({
                     <Link href="/admin/services" className="p-2 rounded-md hover:bg-muted">Usługi</Link>
                     <Link href="/admin/users" className="p-2 rounded-md hover:bg-muted">Użytkownicy</Link>
                     <Link href="/admin/tickets" className="p-2 rounded-md hover:bg-muted">Zgłoszenia</Link>
+                    <Link href="/admin/eko" className="p-2 rounded-md hover:bg-muted">Ustawienia EKO</Link>
                 </nav>
             </aside>
             <div className="flex-1 flex flex-col">
