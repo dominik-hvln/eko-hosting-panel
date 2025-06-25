@@ -1,5 +1,6 @@
-'use client';
+// src/app/(admin)/admin/plans/page.tsx
 
+'use client';
 import { apiClient } from '@/lib/api-helpers';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -10,33 +11,74 @@ import { MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { PlanForm, formSchema, type FormValues } from './PlanForm'; // Importujemy formularz, schemat i typ
+import { PlanForm, formSchema, type FormValues } from './PlanForm';
 
-interface Plan { id: string; name: string; price: string; isPublic: boolean; cpuLimit: number; ramLimit: number; diskSpaceLimit: number; monthlyTransferLimit: number; }
+// Rozszerzamy interfejs o nowe pola, które przyjdą z API
+interface Plan {
+    id: string;
+    name: string;
+    price: string;
+    yearlyPrice: string | null;
+    isPublic: boolean;
+    cpuLimit: number;
+    ramLimit: number;
+    diskSpaceLimit: number;
+    monthlyTransferLimit: number;
+    stripeProductId: string | null;
+    stripeMonthlyPriceId: string | null;
+    stripeYearlyPriceId: string | null;
+}
+
+// Definiujemy kompletne wartości domyślne dla nowego planu
+const defaultPlanValues: FormValues = {
+    name: '',
+    price: 0,
+    yearlyPrice: null,
+    cpuLimit: 100,
+    ramLimit: 1024,
+    diskSpaceLimit: 10240,
+    monthlyTransferLimit: 1000,
+    isPublic: true,
+    stripeProductId: '',
+    stripeMonthlyPriceId: '',
+    stripeYearlyPriceId: '',
+};
 
 export default function AdminPlansPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
     const queryClient = useQueryClient();
-
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
-        defaultValues: { name: '', price: 0, isPublic: true, cpuLimit: 100, ramLimit: 1024, diskSpaceLimit: 10240, monthlyTransferLimit: 1000 },
+        defaultValues: defaultPlanValues,
     });
 
     useEffect(() => {
-        if (editingPlan) {
-            form.reset({ ...editingPlan, price: parseFloat(editingPlan.price) });
-        } else {
-            form.reset({ name: '', price: 0, isPublic: true, cpuLimit: 100, ramLimit: 1024, diskSpaceLimit: 10240, monthlyTransferLimit: 1000 });
+        if (isDialogOpen) {
+            if (editingPlan) {
+                // Konwertujemy stringi na liczby dla pól numerycznych formularza
+                form.reset({
+                    ...editingPlan,
+                    price: parseFloat(editingPlan.price),
+                    yearlyPrice: editingPlan.yearlyPrice ? parseFloat(editingPlan.yearlyPrice) : null,
+                });
+            } else {
+                form.reset(defaultPlanValues);
+            }
         }
-    }, [editingPlan, form]);
+    }, [editingPlan, isDialogOpen, form]);
 
     const { data: plans, isLoading, isError } = useQuery<Plan[]>({ queryKey: ['admin-plans'], queryFn: () => apiClient.get('/plans') });
-    const onMutationSuccess = (message: string) => { queryClient.invalidateQueries({ queryKey: ['admin-plans'] }); toast.success(message); setIsDialogOpen(false); setEditingPlan(null); };
+
+    const onMutationSuccess = (message: string) => {
+        queryClient.invalidateQueries({ queryKey: ['admin-plans'] });
+        toast.success(message);
+        setIsDialogOpen(false);
+        setEditingPlan(null);
+    };
     const onMutationError = (error: Error) => { toast.error(`Wystąpił błąd: ${error.message}`); };
 
     const createMutation = useMutation({ mutationFn: (data: FormValues) => apiClient.post('/plans', data), onSuccess: () => onMutationSuccess('Plan pomyślnie utworzony!'), onError: onMutationError });
@@ -60,13 +102,7 @@ export default function AdminPlansPage() {
         <div className="container mx-auto py-8 px-4 md:px-6">
             <div className="flex items-center justify-between border-b pb-4 mb-6">
                 <h1 className="text-3xl font-bold">Zarządzanie Planami</h1>
-                <Dialog open={isDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) setEditingPlan(null); setIsDialogOpen(isOpen); }}>
-                    <DialogTrigger asChild><Button onClick={() => setEditingPlan(null)}>Dodaj nowy plan</Button></DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader><DialogTitle>Nowy Plan</DialogTitle><DialogDescription>Wypełnij pola, aby stworzyć plan.</DialogDescription></DialogHeader>
-                        <PlanForm onSubmit={handleFormSubmit} isPending={isPending} form={form} />
-                    </DialogContent>
-                </Dialog>
+                <Button onClick={() => { setEditingPlan(null); setIsDialogOpen(true); }}>Dodaj nowy plan</Button>
             </div>
             <Card className="shadow-sm">
                 <CardHeader><CardTitle>Lista Planów Hostingowych</CardTitle></CardHeader>
@@ -104,8 +140,15 @@ export default function AdminPlansPage() {
                 </CardContent>
             </Card>
 
-            {/* Ten dialog jest teraz kontrolowany przez logikę w przycisku Edytuj, nie potrzebujemy go duplikować */}
-            {/* <Dialog open={!!editingPlan} ... /> */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{editingPlan ? `Edytuj Plan: ${editingPlan.name}` : 'Nowy Plan'}</DialogTitle>
+                        <DialogDescription>Wypełnij pola, aby stworzyć lub zaktualizować plan.</DialogDescription>
+                    </DialogHeader>
+                    <PlanForm onSubmit={handleFormSubmit} isPending={isPending} form={form} />
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
